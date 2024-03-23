@@ -7,14 +7,19 @@ NetID: ttn190009
 Assignment 1
 CS6375 - Machine Learnning
 
+Link to dataset: https://archive.ics.uci.edu/dataset/602/dry+bean+dataset
+
 This package including:
 	README.TXT
-	Dry_Bean_Dataset.xlsx
 	NeuralNetwork.py
 
 
 How to run:
-	python3 NeuralNetwork.py
+	1. Download the dataset from the link above
+	2. Extract the dataset to the same folder as the NeuralNetwork.py
+	3. Open the terminal and navigate to the folder containing the NeuralNetwork.py
+	4. Run the following command:
+		python3 NeuralNetwork.py
 	
 In the main code, we set test_size=0.25, which means 25% of the data will be used for testing, and the remaining 75% will be used for training.
 

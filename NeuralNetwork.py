@@ -1,4 +1,7 @@
-import time
+# Jason Nguyen - ttn190009
+# Thien Nguyen - DXN210021
+# Link to dataset: https://archive.ics.uci.edu/dataset/602/dry+bean+dataset
+
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -16,11 +19,15 @@ class NeuralNetwork():
         else:
             self.activation = self.tanh
         # Initialize weights and biases at each layer
+        # Initialize weights using Xavier initialization
+        xavier_stddev_input = np.sqrt(2.0 / (input_layer + hidden_layer))
+        xavier_stddev_hidden = np.sqrt(2.0 / (hidden_layer + output_layer))
+
         self.parameters = {
-            "W1": np.random.randn(hidden_layer, input_layer) * np.sqrt(1./input_layer),
-            "bias_at_hidden_layer": np.zeros((hidden_layer, 1)) * np.sqrt(1./input_layer),
-            "W2": np.random.randn(output_layer, hidden_layer) * np.sqrt(1./hidden_layer),
-            "bias_at_output_layer": np.zeros((output_layer, 1)) * np.sqrt(1./hidden_layer)
+            "W1": np.random.normal(0, xavier_stddev_input, (hidden_layer, input_layer)),
+            "bias_at_hidden_layer": np.zeros((hidden_layer, 1)),
+            "W2": np.random.normal(0, xavier_stddev_hidden, (output_layer, hidden_layer)),
+            "bias_at_output_layer": np.zeros((output_layer, 1))
         }
         # cache to save values during forward pass to use in backward pass
         self.cache = {}
@@ -142,7 +149,7 @@ class NeuralNetwork():
                 begin = j * self.batch_size
                 # end index of the batch
                 end = min(begin + self.batch_size, x_train.shape[0]-1)
-                
+
                 x = x_train_shuffled[begin:end]
                 y = y_train_shuffled[begin:end]
 
@@ -158,7 +165,7 @@ class NeuralNetwork():
             # Test data
             output = self.forward_pass(x_test)
             test_acc = self.get_accuracy(y_test, output)
-            
+
             result = "Epoch {}: train acc = {:.2f}, test acc = {:.2f},"
             print(result.format(i+1, train_accuracy, test_acc))
 
@@ -206,8 +213,19 @@ def main():
 
     # Get the number of classes from the target variable
     num_classes = y_train.shape[1]
-    dnn = NeuralNetwork(16, 10, num_classes, activation='sigmoid', beta=0.9)
-    dnn.train(X_train, y_train, X_test, y_test, batch_size=32, l_rate=0.1)
+    hidden_layer = 10
+    dnn = NeuralNetwork(16, hidden_layer, num_classes, activation='sigmoid', beta=0.9)
+    dnn1 = NeuralNetwork(16, hidden_layer, num_classes, activation='tanh', beta=0.9)
+    dnn2 = NeuralNetwork(16, hidden_layer, num_classes, activation='relu', beta=0.9)
+    learning_rate = 0.01
+    print("sigmoid")
+    dnn.train(X_train, y_train, X_test, y_test,
+              epochs=1, batch_size=32, l_rate=learning_rate)
+    print("tanh")
+    dnn1.train(X_train, y_train, X_test, y_test,
+               epochs=1, batch_size=32, l_rate=learning_rate)
+    print("relu")
+    dnn2.train(X_train, y_train, X_test, y_test, epochs=1, batch_size=32, l_rate=learning_rate)
 
 
 if __name__ == "__main__":
