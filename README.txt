@@ -7,5 +7,9 @@ NetID:
 Assignment 1
 CS6375 - Machine Learnning
 
+This package including:
+	README.TXT
+	
 
-Template:
+
+
