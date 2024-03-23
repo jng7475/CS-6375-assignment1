@@ -57,21 +57,21 @@ class NeuralNetwork():
         return self.cache["output_layer_neurons"]
 
     def backward_pass(self, y_true, learning_rate=0.01):
-        # delta(output) = (y - y_true) * derivative(activation)
+        # δ(output) = (y - y_true) * derivative(activation)
         delta_output = (y_true.T - self.cache["output_layer_neurons"]) * self.activation(
             self.cache["net_from_hidden_layer"], derivative=True)
 
-        # delta(W2) = learning_rate * (delta(output) * hidden_layer_neurons)
+        # ∆(W2) = learning_rate * (delta(output) * hidden_layer_neurons)
         delta_W2 = learning_rate * \
             np.dot(delta_output, self.cache["hidden_layer_neurons"].T)
         delta_bias2 = learning_rate * \
             np.sum(delta_output, axis=1, keepdims=True)
 
-        # Compute delta for the hidden layer
+        # δ(hidden) = (W2.T * delta(output)) * derivative(activation)
         delta_hidden = np.dot(self.parameters["W2"].T, delta_output) * self.activation(
             self.cache["net_from_inputs"], derivative=True)
 
-        # Compute gradients for the hidden layer
+        # ∆W1 = learning_rate * (delta(hidden) * input_neurons)
         delta_W1 = learning_rate * \
             np.dot(delta_hidden, self.cache["input_neurons"])
         delta_bias1 = learning_rate * \
@@ -82,12 +82,6 @@ class NeuralNetwork():
         self.parameters["bias2"] += delta_bias2
         self.parameters["W1"] += delta_W1
         self.parameters["bias1"] += delta_bias1
-
-    def cross_entropy_loss(self, y, output):
-        m = y.shape[0]
-        log_likelihood = -np.sum(y * np.log(output.T), axis=1)
-        l = np.mean(log_likelihood)
-        return l
 
     def accuracy(self, y, output):
         y_pred = np.argmax(output.T, axis=-1)
