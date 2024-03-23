@@ -1,39 +1,56 @@
+import time
 import numpy as np
-import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn.model_selection import train_test_split
 
+class DeepNeuralNetwork():
+    def __init__(self, sizes, activation='sigmoid'):
+        self.sizes = sizes
 
-class CustomNeuralNetwork:
-    def __init__(self, input_size, hidden_size, output_size, activation_func='relu', learning_rate=0.01):
-        np.random.seed(42)  # For reproducibility
-        self.weights1 = np.random.randn(input_size, hidden_size) * 0.01
-        self.bias1 = np.zeros((1, hidden_size))
-        self.weights2 = np.random.randn(hidden_size, output_size) * 0.01
-        self.bias2 = np.zeros((1, output_size))
-        self.activation_func = activation_func
-        self.learning_rate = learning_rate
-    
-    def activation(self, x):
-        if self.activation_func == 'sigmoid':
-            return 1 / (1 + np.exp(-x))
-        elif self.activation_func == 'tanh':
-            return np.tanh(x)
-        elif self.activation_func == 'relu':
-            return np.maximum(0, x)
-    
-    def activation_derivative(self, x):
-        if self.activation_func == 'sigmoid':
-            return x * (1 - x)
-        elif self.activation_func == 'tanh':
-            return 1 - np.power(x, 2)
-        elif self.activation_func == 'relu':
-            return np.where(x <= 0, 0, 1)
+        # Choose activation function
+        if activation == 'relu':
+            self.activation = self.relu
+        elif activation == 'sigmoid':
+            self.activation = self.sigmoid
+        elif activation == 'tanh':
+            self.activation = self.tanh
+        else:
+            raise ValueError(
+                "Activation function is currently not support, please use 'relu' or 'sigmoid' instead.")
+
+        # Save all weights
+        self.params = self.initialize()
+        # Save all intermediate values, i.e. activations
+        self.cache = {}
+
+    def relu(self, x, derivative=False):
+        if derivative:
+            x = np.where(x < 0, 0, x)
+            x = np.where(x >= 0, 1, x)
+            return x
+        return np.maximum(0, x)
+
+    def sigmoid(self, x, derivative=False):
+        if derivative:
+            return (np.exp(-x))/((np.exp(-x)+1)**2)
+        return 1/(1 + np.exp(-x))
+
+    def tanh(self, x, derivative=False):
+        if derivative:
+            return 1 - np.tanh(x)**2
+        return np.tanh(x)
+
+    def softmax(self, x):
+        # Numerically stable with large exponentials
+        exps = np.exp(x - x.max())
+        return exps / np.sum(exps, axis=0)
 
     def initialize(self):
         # number of nodes in each layer
-        input_layer=self.sizes[0]
-        hidden_layer=self.sizes[1]
-        output_layer=self.sizes[2]
-        
+        input_layer = self.sizes[0]
+        hidden_layer = self.sizes[1]
+        output_layer = self.sizes[2]
+
         params = {
             "W1": np.random.randn(hidden_layer, input_layer) * np.sqrt(1./input_layer),
             "b1": np.zeros((hidden_layer, 1)) * np.sqrt(1./input_layer),
@@ -41,40 +58,174 @@ class CustomNeuralNetwork:
             "b2": np.zeros((output_layer, 1)) * np.sqrt(1./hidden_layer)
         }
         return params
-    
-    def forward_propagation(self, X):
-        self.Z1 = np.dot(X, self.weights1) + self.bias1
-        self.A1 = self.activation(self.Z1)
-        self.Z2 = np.dot(self.A1, self.weights2) + self.bias2
-        self.A2 = self.activation(self.Z2)
-        return self.A2
 
-    def back_propagation(self, X, y, output):
+    def initialize_momemtum_optimizer(self):
+        momemtum_opt = {
+            "W1": np.zeros(self.params["W1"].shape),
+            "b1": np.zeros(self.params["b1"].shape),
+            "W2": np.zeros(self.params["W2"].shape),
+            "b2": np.zeros(self.params["b2"].shape),
+        }
+        return momemtum_opt
+
+    def feed_forward(self, x):
+        '''
+            y = σ(wX + b)
+        '''
+        self.cache["X"] = x
+        self.cache["Z1"] = np.matmul(
+            self.params["W1"], self.cache["X"].T) + self.params["b1"]
+        self.cache["A1"] = self.activation(self.cache["Z1"])
+        self.cache["Z2"] = np.matmul(
+            self.params["W2"], self.cache["A1"]) + self.params["b2"]
+        self.cache["A2"] = self.softmax(self.cache["Z2"])
+        return self.cache["A2"]
+
+    def back_propagate(self, y, output):
+        '''
+            This is the backpropagation algorithm, for calculating the updates
+            of the neural network's parameters.
+
+            Note: There is a stability issue that causes warnings. This is 
+                  caused  by the dot and multiply operations on the huge arrays.
+
+                  RuntimeWarning: invalid value encountered in true_divide
+                  RuntimeWarning: overflow encountered in exp
+                  RuntimeWarning: overflow encountered in square
+        '''
+        current_batch_size = y.shape[0]
+
+        dZ2 = output - y.T
+        dW2 = (1./current_batch_size) * np.matmul(dZ2, self.cache["A1"].T)
+        db2 = (1./current_batch_size) * np.sum(dZ2, axis=1, keepdims=True)
+
+        dA1 = np.matmul(self.params["W2"].T, dZ2)
+        dZ1 = dA1 * self.activation(self.cache["Z1"], derivative=True)
+        dW1 = (1./current_batch_size) * np.matmul(dZ1, self.cache["X"])
+        db1 = (1./current_batch_size) * np.sum(dZ1, axis=1, keepdims=True)
+
+        self.grads = {"W1": dW1, "b1": db1, "W2": dW2, "b2": db2}
+        return self.grads
+
+    def cross_entropy_loss(self, y, output):
+        '''
+        L(y, ŷ) = −∑ylog(ŷ).
+    '''
         m = y.shape[0]
-        dZ2 = output - y
-        dW2 = (1 / m) * np.dot(self.A1.T, dZ2)
-        db2 = (1 / m) * np.sum(dZ2, axis=0, keepdims=True)
+        log_likelihood = -np.sum(y * np.log(output.T), axis=1)
+        l = np.mean(log_likelihood)
+        return l
+
+    def optimize(self, l_rate=0.1, beta=.9):
+        '''
+            Stochatic Gradient Descent (SGD):
+            θ^(t+1) <- θ^t - η∇L(y, ŷ)
+
+            Momentum:
+            v^(t+1) <- βv^t + (1-β)∇L(y, ŷ)^t
+            θ^(t+1) <- θ^t - ηv^(t+1)
+        '''
+        if self.optimizer == "sgd":
+            for key in self.params:
+                self.params[key] = self.params[key] - l_rate * self.grads[key]
+        elif self.optimizer == "momentum":
+            for key in self.params:
+                self.momemtum_opt[key] = (
+                    beta * self.momemtum_opt[key] + (1. - beta) * self.grads[key])
+                self.params[key] = self.params[key] - \
+                    l_rate * self.momemtum_opt[key]
+        else:
+            raise ValueError(
+                "Optimizer is currently not support, please use 'sgd' or 'momentum' instead.")
+
+    def accuracy(self, y, output):
+        y_pred = np.argmax(output.T, axis=-1)
+        y_true = np.argmax(y, axis=-1)
+        return np.mean(y_pred == y_true)
+
+    def train(self, x_train, y_train, x_test, y_test, epochs=10, 
+              batch_size=64, optimizer='momentum', l_rate=0.1, beta=.9):
+        # Hyperparameters
+        self.epochs = epochs
+        self.batch_size = batch_size
+        num_batches = -(-x_train.shape[0] // self.batch_size)
         
-        dZ1 = np.dot(dZ2, self.weights2.T) * self.activation_derivative(self.A1)
-        dW1 = (1 / m) * np.dot(X.T, dZ1)
-        db1 = (1 / m) * np.sum(dZ1, axis=0, keepdims=True)
+        # Initialize optimizer
+        self.optimizer = optimizer
+        if self.optimizer == 'momentum':
+            self.momemtum_opt = self.initialize_momemtum_optimizer()
         
-        self.weights1 -= self.learning_rate * dW1
-        self.bias1 -= self.learning_rate * db1
-        self.weights2 -= self.learning_rate * dW2
-        self.bias2 -= self.learning_rate * db2
+        start_time = time.time()
+        template = "Epoch {}: {:.2f}s, train acc={:.2f}, train loss={:.2f}, test acc={:.2f}, test loss={:.2f}"
+        
+        # Train
+        for i in range(self.epochs):
+            # Shuffle
+            permutation = np.random.permutation(x_train.shape[0])
+            x_train_shuffled = x_train[permutation]
+            y_train_shuffled = y_train[permutation]
 
-    def train(self, X, y, epochs=1000):
-        for epoch in range(epochs):
-            output = self.forward_propagation(X)
-            self.back_propagation(X, y, output)
+            for j in range(num_batches):
+                # Batch
+                begin = j * self.batch_size
+                end = min(begin + self.batch_size, x_train.shape[0]-1)
+                x = x_train_shuffled[begin:end]
+                y = y_train_shuffled[begin:end]
+                
+                # Forward
+                output = self.feed_forward(x)
+                # Backprop
+                grad = self.back_propagate(y, output)
+                # Optimize
+                self.optimize(l_rate=l_rate, beta=beta)
 
-    def predict(self, X):
-        output = self.forward_propagation(X)
-        predictions = np.argmax(output, axis=1)
-        return predictions
+            # Evaluate performance
+            # Training data
+            output = self.feed_forward(x_train)
+            train_acc = self.accuracy(y_train, output)
+            train_loss = self.cross_entropy_loss(y_train, output)
+            # Test data
+            output = self.feed_forward(x_test)
+            test_acc = self.accuracy(y_test, output)
+            test_loss = self.cross_entropy_loss(y_test, output)
+            print(template.format(i+1, time.time()-start_time, train_acc, train_loss, test_acc, test_loss))
 
-    def evaluate_accuracy(self, X_test, y_test):
-        predictions = self.predict(X_test)
-        accuracy = accuracy_score(y_test, predictions)
-        return accuracy
+def preprocess_data():
+    # Load the Excel file into a pandas DataFrame
+    excel_file = 'Dry_Bean_Dataset.xlsx'
+    df = pd.read_excel(excel_file)
+
+    # Encode the target variable (Class)
+    class_mapping = {label: index for index, label in enumerate(df['Class'].unique())}
+    df['Class'] = df['Class'].map(class_mapping)
+
+    # Separate features and target
+    X = df.drop('Class', axis=1).values
+    y = df['Class'].values
+
+    # One-hot encode the target variable
+    num_classes = len(class_mapping)
+    y = np.eye(num_classes)[y]
+
+    # Normalize the features
+    X = (X - X.min(axis=0)) / (X.max(axis=0) - X.min(axis=0))
+
+    return X, y
+
+def split_data(X, y, test_size=0.2, random_state=42):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+    return X_train, X_test, y_train, y_test
+
+# Preprocess the data
+X, y = preprocess_data()
+
+# Split the data into training and testing sets
+test_size = 0.25  # Ideal ratio for training and testing
+X_train, X_test, y_train, y_test = split_data(X, y, test_size=test_size)
+
+print(f"Training set: {X_train.shape}, Testing set: {X_test.shape}")
+print(f"Training set: {y_train.shape}, Testing set: {y_test.shape}")
+
+num_classes = y_train.shape[1]  # Get the number of classes from the target variable
+dnn = DeepNeuralNetwork(sizes=[16, 10, num_classes], activation='sigmoid')
+dnn.train(X_train, y_train, X_test, y_test, batch_size=16, optimizer='sgd', l_rate=0.5, beta=.9)
