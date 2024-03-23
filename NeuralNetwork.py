@@ -53,9 +53,7 @@ class NeuralNetwork():
 
     def relu(self, x, derivative=False):
         if derivative:
-            x = np.where(x < 0, 0, x)
-            x = np.where(x >= 0, 1, x)
-            return x
+            return np.where(x <= 0, 0, 1)
         return np.maximum(0, x)
 
     def forward_pass(self, X):
@@ -214,18 +212,23 @@ def main():
     # Get the number of classes from the target variable
     num_classes = y_train.shape[1]
     hidden_layer = 10
-    dnn = NeuralNetwork(16, hidden_layer, num_classes, activation='sigmoid', beta=0.9)
-    dnn1 = NeuralNetwork(16, hidden_layer, num_classes, activation='tanh', beta=0.9)
-    dnn2 = NeuralNetwork(16, hidden_layer, num_classes, activation='relu', beta=0.9)
+    dnn = NeuralNetwork(16, hidden_layer, num_classes,
+                        activation='sigmoid', beta=0.9)
+    dnn1 = NeuralNetwork(16, hidden_layer, num_classes,
+                         activation='tanh', beta=0.9)
+    dnn2 = NeuralNetwork(16, hidden_layer, num_classes,
+                         activation='relu', beta=0.9)
     learning_rate = 0.01
+    a_batch_size = 32
     print("sigmoid")
     dnn.train(X_train, y_train, X_test, y_test,
-              epochs=1, batch_size=32, l_rate=learning_rate)
+              epochs=10, batch_size=a_batch_size, l_rate=learning_rate)
     print("tanh")
     dnn1.train(X_train, y_train, X_test, y_test,
-               epochs=1, batch_size=32, l_rate=learning_rate)
+               epochs=10, batch_size=a_batch_size, l_rate=learning_rate)
     print("relu")
-    dnn2.train(X_train, y_train, X_test, y_test, epochs=1, batch_size=32, l_rate=learning_rate)
+    dnn2.train(X_train, y_train, X_test, y_test, epochs=10,
+               batch_size=a_batch_size, l_rate=learning_rate)
 
 
 if __name__ == "__main__":
